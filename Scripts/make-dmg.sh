@@ -17,16 +17,18 @@ cp Scripts/dmg-readme.txt "$STAGE/Read Me First.txt"
 cp build/AppIcon.icns "$STAGE/.VolumeIcon.icns"
 
 DMG="dist/Pianola-$VERSION.dmg"
-WORK=build/Pianola-rw.dmg
-MOUNT="$(mktemp -d)"
+WORK=build/Pianola-work.dmg
+MOUNT=build/dmg-mount
 rm -f "$DMG" "$WORK"
-echo "› Creating $DMG…"
-# Make a writable image first so the disk can be given the app's icon.
-hdiutil create -volname "Pianola" -srcfolder "$STAGE" -fs HFS+ -format UDRW -ov "$WORK" >/dev/null
-hdiutil attach "$WORK" -nobrowse -noautoopen -mountpoint "$MOUNT" >/dev/null
+echo "› Creating ${DMG}…"
+# Runs a command silently, but shows its output if it fails.
+quiet() { local out; if ! out=$("$@" 2>&1); then echo "$out" >&2; return 1; fi; }
+# Make a writable (raw) image first so the disk can be given the app's icon,
+# then compress it. diskutil makes the volume APFS, which macOS 26 reads.
+quiet diskutil image create from "$STAGE" "$WORK" --format RAW --volumeName "Pianola"
+quiet diskutil image attach "$WORK" --nobrowse --mountPoint "$MOUNT"
 SetFile -a C "$MOUNT"
-hdiutil detach "$MOUNT" >/dev/null
-hdiutil convert "$WORK" -format UDZO -imagekey zlib-level=9 -o "$DMG" >/dev/null
+quiet diskutil eject "$MOUNT"
+quiet diskutil image create from "$WORK" "$DMG" --format UDZO
 rm -f "$WORK"
-rmdir "$MOUNT" 2>/dev/null || true
 echo "✓ $DMG ($(du -h "$DMG" | cut -f1 | tr -d ' '))"

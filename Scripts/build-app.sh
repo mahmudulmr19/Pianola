@@ -32,7 +32,7 @@ if [ ! -f build/AppIcon.icns ] || [ Scripts/make-icon.swift -nt build/AppIcon.ic
   iconutil -c icns build/AppIcon.iconset -o build/AppIcon.icns
 fi
 
-echo "› Assembling $APP…"
+echo "› Assembling ${APP}…"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/Pianola"
