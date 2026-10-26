@@ -79,6 +79,41 @@ held for about half their length (PianoBlox).
 **Transpose** is a reminder you keep with each sheet. Set the same value on the
 Roblox piano. Pianola always types the letters as written.
 
+## Updates
+
+Pianola updates itself with [Sparkle](https://sparkle-project.org). Every copy
+checks `appcast.xml` on the latest GitHub release once a day, and on demand from
+**Pianola → Check for Updates…**. An update installs only if it is signed with
+your key.
+
+**One-time setup** (already done on this Mac): `Scripts/setup-update-key.sh`
+creates the signing key. The private half lives in your login Keychain; the
+public half is in `Scripts/sparkle-public-key.txt` and is built into the app.
+Back up the private key somewhere safe, such as a password manager:
+
+```bash
+.build/artifacts/sparkle/Sparkle/bin/generate_keys --account pianola -x pianola-update-key.txt
+```
+
+If the key is lost, copies already out there can't accept new updates.
+
+**Releasing a new version:**
+
+```bash
+Scripts/release.sh 1.2 "What changed, one line per point"
+```
+
+This sets `VERSION`, builds the universal app and DMG, signs the update and
+writes `appcast.xml`. With the GitHub CLI (`brew install gh`, then
+`gh auth login`), it also creates the GitHub release `v1.2`. Without it, the
+script lists the three files from `dist/` to upload by hand. Commit and push
+`VERSION` with the release.
+
+`Scripts/test-update.sh` checks the whole update path on this Mac without
+touching the real app: an old test copy updates itself to a new one from a local
+server. `Scripts/test-update.sh --forged` checks that a wrongly signed update is
+refused.
+
 ## Project layout
 
 - `Sources/PianolaCore`: the engine, with no UI code.
@@ -93,6 +128,7 @@ Roblox piano. Pianola always types the letters as written.
   check.
 - `Sources/PianolaCLI`: `pianola-cli` prints what the engine makes of a sheet:
   `swift run pianola-cli events < sheet.txt`.
+- `Sources/Pianola/System/Updates.swift`: Sparkle updates.
 - `Tests/PianolaCoreTests`: parser, timing and real-time player tests.
 
 ```bash

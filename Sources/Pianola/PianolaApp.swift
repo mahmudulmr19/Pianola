@@ -42,6 +42,7 @@ final class AppModel {
     let library = Library()
     let permissions = Permissions()
     let hotKeys = HotKeys()
+    let updates = Updates()
     let performance: Performance
 
     private init() {
@@ -92,8 +93,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         let model = AppModel.shared
-        model.hotKeys.register { model.handle($0) }
-        if !model.permissions.canPressKeys && ProcessInfo.processInfo.environment["PIANOLA_SNAPSHOT"] == nil {
+        // Test copies made by Scripts/test-update.sh leave the shortcuts to the real app.
+        if Bundle.main.bundleIdentifier?.hasSuffix(".updatetest") != true {
+            model.hotKeys.register { model.handle($0) }
+        }
+        let isRealApp = Bundle.main.bundleIdentifier == "com.mahmudul.pianola"
+            && ProcessInfo.processInfo.environment["PIANOLA_SNAPSHOT"] == nil
+        if !model.permissions.canPressKeys && isRealApp {
             // Ask straight away: shows the macOS prompt that leads to the Accessibility list.
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { model.permissions.request() }
         }
@@ -115,6 +121,10 @@ struct PianolaCommands: Commands {
     let model: AppModel
 
     var body: some Commands {
+        CommandGroup(after: .appInfo) {
+            Button("Check for Updates…") { model.updates.checkNow() }
+                .disabled(!model.updates.canCheck)
+        }
         CommandGroup(replacing: .newItem) {
             Button("New Sheet") { model.library.add() }
                 .keyboardShortcut("n")

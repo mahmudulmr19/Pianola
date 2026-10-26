@@ -49,6 +49,20 @@ struct SettingsView: View {
                 Button("Test Key Presses…") { permissions.showingKeyTest = true }
             }
 
+            Section("Updates") {
+                let updates = AppModel.shared.updates
+                LabeledContent("Version", value: Updates.versionText)
+                if updates.isAvailable {
+                    Toggle("Check for updates automatically", isOn: Binding(
+                        get: { updates.checksAutomatically },
+                        set: { updates.checksAutomatically = $0 }))
+                    Button("Check Now") { updates.checkNow() }
+                        .disabled(!updates.canCheck)
+                } else {
+                    Text("Updates are off in this build.").foregroundStyle(.secondary)
+                }
+            }
+
             Section("Library") {
                 LabeledContent("Hammerspoon sheets") {
                     if let imported {
