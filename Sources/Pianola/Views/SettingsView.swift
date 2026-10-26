@@ -17,6 +17,8 @@ struct SettingsView: View {
                     LabeledContent("Count-in", value: settings.countIn == 0 ? "None" : "\(settings.countIn) seconds")
                 }
                 Toggle("Pause when the game isn't the front app", isOn: $settings.autoPause)
+                Toggle("Play in the background", isOn: $settings.playInBackground)
+                    .help("Send keys straight to the chosen app, so it doesn't need to be in front. Turn off for apps that ignore keys while in the background.")
                 Toggle("Show the floating mini player", isOn: $settings.showMiniPlayer)
             }
 

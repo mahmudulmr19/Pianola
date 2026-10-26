@@ -244,6 +244,10 @@ struct TargetAppMenu: View {
                 Text("Whichever app is in front").tag("")
             }
             .pickerStyle(.inline)
+            Divider()
+            Toggle("Play in the background", isOn: $settings.playInBackground)
+                .disabled(settings.targetName.isEmpty)
+                .help("Send keys straight to the chosen app, so it doesn't need to be in front")
         } label: {
             Label(settings.targetName.isEmpty ? "Front app" : settings.targetName, systemImage: "scope")
                 .labelStyle(.titleAndIcon)

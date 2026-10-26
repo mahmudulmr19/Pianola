@@ -4,14 +4,16 @@ import PianolaCore
 
 /// Sends the player's key presses to macOS as real keyboard events.
 ///
-/// This mirrors what the Hammerspoon version did, which Roblox accepts: events
-/// go to the login session, and a black key is its white key with the Shift
-/// flag on the event (no separate Shift press, which Roblox games often bind to
-/// Shift-lock). Keys are found by character on the current keyboard layout.
+/// With no target, events go to the login session, so the front app gets them,
+/// as in the Hammerspoon version. With a target, they go straight to that app's
+/// process, so it does not need to be in front. A black key is its white key
+/// with the Shift flag on the event (no separate Shift press, which Roblox games
+/// often bind to Shift-lock). Keys are found by character on the current layout.
 final class SystemKeyboard: KeyOutput, @unchecked Sendable {
     private let lock = NSLock()
     private var codes: [Character: CGKeyCode]
     private var sent = 0
+    private var targetPID: pid_t?
     private let source = CGEventSource(stateID: .combinedSessionState)
 
     @MainActor init() {
@@ -22,6 +24,11 @@ final class SystemKeyboard: KeyOutput, @unchecked Sendable {
     @MainActor func refreshLayout() {
         let fresh = Self.layoutCodes()
         lock.withLock { codes = fresh }
+    }
+
+    /// Send to this app even when it is in the background, or nil for the front app.
+    func setTarget(_ pid: pid_t?) {
+        lock.withLock { targetPID = pid }
     }
 
     /// Number of key events posted so far.
@@ -37,7 +44,11 @@ final class SystemKeyboard: KeyOutput, @unchecked Sendable {
     private func post(_ code: CGKeyCode?, down: Bool, shift: Bool) {
         guard let code, let event = CGEvent(keyboardEventSource: source, virtualKey: code, keyDown: down) else { return }
         event.flags = shift ? .maskShift : []
-        event.post(tap: .cgSessionEventTap)
+        if let pid = lock.withLock({ targetPID }) {
+            event.postToPid(pid)
+        } else {
+            event.post(tap: .cgSessionEventTap)
+        }
         lock.withLock { sent += 1 }
     }
 

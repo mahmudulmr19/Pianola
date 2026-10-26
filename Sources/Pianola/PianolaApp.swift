@@ -88,6 +88,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.appearance = NSAppearance(named: .darkAqua)
         let version = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "dev"
         Diagnostics.log("Pianola launched (build \(version), macOS \(ProcessInfo.processInfo.operatingSystemVersionString)). Permission to press keys: \(CGPreflightPostEventAccess())")
+        if BackgroundTest.runIfRequested() { return }
         if ProcessInfo.processInfo.environment["PIANOLA_SELFTEST"] != nil {
             SelfTest.runIfRequested()
             return

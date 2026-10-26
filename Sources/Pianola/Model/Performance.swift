@@ -46,6 +46,8 @@ final class Performance {
     private(set) var speed = 1.0
     private(set) var transpose = 0
     private(set) var targetName = ""
+    /// Keys go straight to the target app, which can stay in the background.
+    private(set) var inBackground = false
     /// Where playback starts when a note is clicked while stopped.
     private(set) var startMarker: StartMarker?
     var notice: Notice?
@@ -66,6 +68,7 @@ final class Performance {
     @ObservationIgnored private var toastTask: Task<Void, Never>?
     @ObservationIgnored private var miniPlayer: MiniPlayerWindow?
     @ObservationIgnored private var activationObserver: NSObjectProtocol?
+    @ObservationIgnored private var terminationObserver: NSObjectProtocol?
     @ObservationIgnored private var isPreview = false
 
     init(settings: AppSettings) {
@@ -80,6 +83,12 @@ final class Performance {
         ) { [weak self] note in
             let pid = (note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.processIdentifier
             MainActor.assumeIsolated { self?.frontAppChanged(to: pid) }
+        }
+        terminationObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didTerminateApplicationNotification, object: nil, queue: .main
+        ) { [weak self] note in
+            let pid = (note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.processIdentifier
+            MainActor.assumeIsolated { self?.appQuit(pid) }
         }
     }
 
@@ -146,7 +155,11 @@ final class Performance {
         beat = startBeat
 
         keyboard.refreshLayout()
-        if let target {
+        inBackground = target != nil && settings.playInBackground
+        keyboard.setTarget(inBackground ? target?.processIdentifier : nil)
+        if let target, inBackground {
+            Diagnostics.log("Sending keys straight to \(targetName) (pid \(target.processIdentifier)), in the background")
+        } else if let target {
             NSApp.yieldActivation(to: target)
             let activated = target.activate()
             Diagnostics.log("Bringing \(targetName) (pid \(target.processIdentifier)) to the front: \(activated ? "ok" : "refused")")
@@ -176,7 +189,7 @@ final class Performance {
         // Never type into the wrong app: the game must be in front, and with no
         // game chosen, Pianola itself must not be (it would type into its own window).
         let front = NSWorkspace.shared.frontmostApplication
-        if let target = targetPID, front?.processIdentifier != target {
+        if let target = targetPID, !inBackground, front?.processIdentifier != target {
             Diagnostics.log("Not playing: \(targetName) is not in front (front app: \(front?.localizedName ?? "none"))")
             stop()
             notice = Notice(title: "\(targetName) didn't come to the front",
@@ -193,7 +206,9 @@ final class Performance {
         player.play(plan, fromBeat: startBeat, bpm: bpm, speed: speed, sustain: sustain)
         phase = .playing
         startPolling()
-        Diagnostics.log("Playing into \(front?.localizedName ?? "none") from beat \(startBeat)")
+        Diagnostics.log(inBackground
+            ? "Playing into \(targetName) in the background from beat \(startBeat)"
+            : "Playing into \(front?.localizedName ?? "none") from beat \(startBeat)")
     }
 
     func togglePlayPause(_ sheet: SavedSheet?) {
@@ -228,8 +243,10 @@ final class Performance {
                 notice = Notice(title: "\(targetName) closed", detail: "Open it again to keep playing.")
                 return
             }
-            NSApp.yieldActivation(to: app)
-            app.activate()
+            if !inBackground {
+                NSApp.yieldActivation(to: app)
+                app.activate()
+            }
         }
         phase = .paused("Resuming…")
         resumeTask = Task { [weak self] in
@@ -380,14 +397,23 @@ final class Performance {
         if snapshot.heldKeys != heldKeys { heldKeys = snapshot.heldKeys }
         if snapshot.state == .finished && phase == .playing { finish() }
         // Backstop for a missed app-switch notification.
-        if phase == .playing, settings.autoPause, let target = targetPID,
+        if phase == .playing, settings.autoPause, !inBackground, let target = targetPID,
            let front = NSWorkspace.shared.frontmostApplication, front.processIdentifier != target {
             frontAppChanged(to: front.processIdentifier)
         }
     }
 
+    /// The target app quit: nothing left to send keys to.
+    private func appQuit(_ pid: pid_t?) {
+        guard let pid, pid == targetPID, phase.isRunning else { return }
+        Diagnostics.log("\(targetName) quit while \(phase)")
+        stop()
+        notice = Notice(title: "\(targetName) closed", detail: "Open it again to keep playing.")
+    }
+
     private func frontAppChanged(to pid: pid_t?) {
-        guard settings.autoPause, !isPreview else { return }
+        // In the background the target never needs to be in front.
+        guard settings.autoPause, !isPreview, !inBackground else { return }
         if phase.isRunning {
             let name = pid.flatMap { NSRunningApplication(processIdentifier: $0)?.localizedName } ?? "unknown"
             Diagnostics.log("Front app changed to \(name) while \(phase)")

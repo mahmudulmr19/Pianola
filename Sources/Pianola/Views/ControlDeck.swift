@@ -141,7 +141,9 @@ struct PlaybackProgress: View {
         }
         switch performance.phase {
         case .countingIn(let n): return n > 0 ? "Starting in \(n)…" : "Starting…"
-        case .playing: return performance.targetName.isEmpty ? "Playing" : "Playing into \(performance.targetName)"
+        case .playing:
+            if performance.targetName.isEmpty { return "Playing" }
+            return "Playing into \(performance.targetName)" + (performance.inBackground ? " in the background" : "")
         case .paused(let reason): return reason.map { "Paused — \($0)" } ?? "Paused"
         case .finished: return "Finished"
         case .idle: return "Ready"

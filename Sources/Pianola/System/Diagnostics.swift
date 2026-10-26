@@ -32,6 +32,29 @@ enum Diagnostics {
     }
 }
 
+/// `PIANOLA_BGTEST=<pid>` plays the test sheet straight into another app by
+/// its process number, without bringing it to the front, then quits.
+@MainActor
+enum BackgroundTest {
+    static func runIfRequested() -> Bool {
+        guard let pid = ProcessInfo.processInfo.environment["PIANOLA_BGTEST"].flatMap(pid_t.init) else { return false }
+        let keyboard = SystemKeyboard()
+        keyboard.setTarget(pid)
+        let player = SheetPlayer(output: keyboard)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            let target = NSRunningApplication(processIdentifier: pid)?.localizedName ?? "pid \(pid)"
+            Diagnostics.log("Background test: typing into \(target); front app is \(Diagnostics.frontAppName()). Permission: \(CGPreflightPostEventAccess())")
+            player.play(PlaybackPlan(SheetParser.parse(SelfTest.sheet)), bpm: 120, speed: 1, sustain: false)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3.4) {
+                Diagnostics.log("Background test: sent \(keyboard.sentCount) key events; front app is \(Diagnostics.frontAppName())")
+                player.shutdown()
+                exit(0)
+            }
+        }
+        return true
+    }
+}
+
 /// `PIANOLA_SELFTEST=/path/result.json` opens a small window with a text box,
 /// plays a short sheet into it and writes what arrived. It checks the whole
 /// path (permission, keyboard layout, Shift for black keys) without Roblox.
