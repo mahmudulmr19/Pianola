@@ -65,6 +65,7 @@ final class FloatingPanel: NSPanel {
 struct MiniPlayerView: View {
     static let size = CGSize(width: 560, height: 96)
     let performance: Performance
+    @Environment(\.appearsActive) private var appearsActive
 
     var body: some View {
         HStack(spacing: 14) {
@@ -135,7 +136,7 @@ struct MiniPlayerView: View {
             Button { performance.togglePlayPause(nil) } label: {
                 Image(systemName: performance.phase == .playing ? "pause.fill" : "play.fill")
                     .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(Theme.ebony)
+                    .foregroundStyle(appearsActive ? Theme.ebony : Color.white)
                     .contentTransition(.symbolEffect(.replace))
                     .frame(width: 26, height: 26)
             }
